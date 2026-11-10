@@ -5,14 +5,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { migrate, one, q, type Company, type Update } from "./db.js";
-import { seedIfEmpty } from "./seed.js";
+import { seedOnBoot, resetDemoData } from "./seed.js";
 import { verifyPassword, requireLogin } from "./auth.js";
 import { buildMcpServer } from "./mcp.js";
 import {
   baseUrl, links, companyBySecret, companyById, listUpdates, getUpdate, previousUpdate, listRecipients, addRecipient,
   removeRecipient, openStatus, openCounts, saveDraft, publish, recordView, cleanList,
+  activeShareLink, createShareLink, shareLinkByToken,
 } from "./services.js";
-import { runChecks, nextPeriod, currentPeriod } from "./logic.js";
+import { runChecks, nextPeriod, currentPeriod, INPUT_METRICS } from "./logic.js";
 import * as P from "./pages.js";
 import { sendEmail, reminderEmailHtml } from "./email.js";
 
@@ -122,12 +123,12 @@ app.get("/updates/:id/edit", requireLogin, wrap(async (req, res) => {
   if (!r) { res.status(404).send(P.notFound()); return; }
   const prev = await previousUpdate(r.c.id, r.u.period);
   const checks = runChecks(r.u, prev || null);
-  res.send(P.editorPage(r.c, r.u, checks, await openStatus(r.u), takeFlash(req), baseUrl()));
+  res.send(P.editorPage(r.c, r.u, prev || null, checks, await openStatus(r.u), takeFlash(req), baseUrl()));
 }));
 
 function formToDraft(body: any, period: string) {
   const metrics: any = {};
-  for (const k of ["mrr", "revenue", "cash", "net_burn", "headcount"]) metrics[k] = body[`m_${k}`];
+  for (const k of INPUT_METRICS) metrics[k] = body[`m_${k}`];
   const keys = [].concat(body.custom_key || []), vals = [].concat(body.custom_val || []);
   const custom: Record<string, string> = {};
   keys.forEach((k: string, i: number) => { if (String(k).trim()) custom[String(k).trim()] = vals[i] ?? ""; });
@@ -165,7 +166,7 @@ app.post("/updates/:id/delete", requireLogin, wrap(async (req, res) => {
 
 app.get("/recipients", requireLogin, wrap(async (req, res) => {
   const c = await me(req);
-  res.send(P.recipientsPage(c, await listRecipients(c.id), takeFlash(req), baseUrl()));
+  res.send(P.recipientsPage(c, await listRecipients(c.id), (await activeShareLink(c.id)) || null, takeFlash(req), baseUrl()));
 }));
 app.post("/recipients", requireLogin, wrap(async (req, res) => {
   const c = await me(req);
@@ -181,6 +182,19 @@ app.post("/recipients/:id/delete", requireLogin, wrap(async (req, res) => {
   res.redirect("/recipients");
 }));
 
+app.post("/share-link", requireLogin, wrap(async (req, res) => {
+  const c = await me(req);
+  await createShareLink(c.id);
+  flash(req, "ok", "Share link created.");
+  res.redirect("/recipients");
+}));
+app.post("/share-link/regenerate", requireLogin, wrap(async (req, res) => {
+  const c = await me(req);
+  await createShareLink(c.id, { revokeExisting: true });
+  flash(req, "ok", "Old link revoked. A new share link is ready.");
+  res.redirect("/recipients");
+}));
+
 app.get("/settings", requireLogin, wrap(async (req, res) => {
   const c = await me(req);
   res.send(P.settingsPage(c, links.mcp(c), takeFlash(req)));
@@ -192,6 +206,12 @@ app.post("/settings", requireLogin, wrap(async (req, res) => {
   flash(req, "ok", "Saved.");
   res.redirect("/settings");
 }));
+app.post("/settings/reset-demo", requireLogin, wrap(async (req, res) => {
+  const c = await me(req);
+  await resetDemoData(c.id);
+  flash(req, "ok", "Demo data reset: six seeded updates restored, views reset, everything else deleted.");
+  res.redirect("/dashboard");
+}));
 app.post("/settings/reminder-test", requireLogin, wrap(async (req, res) => {
   const c = await me(req);
   const results = await runReminders({ force: true, companyId: c.id });
@@ -200,33 +220,87 @@ app.post("/settings/reminder-test", requireLogin, wrap(async (req, res) => {
 }));
 
 // ---------------- public pages (no login) ----------------
+// A View is recorded only on /u/... with a valid investor token, and never when a founder is
+// logged in or the URL has ?preview=1. History pages (/i, /s) never record views.
+const isPreview = (req: express.Request) => req.query.preview === "1";
+
+async function publishedPrev(companyId: number, period: string) {
+  return (await one<Update>(
+    "SELECT * FROM updates WHERE company_id = $1 AND period < $2 AND status = 'published' ORDER BY period DESC LIMIT 1",
+    [companyId, period],
+  )) || null;
+}
+
 app.get("/u/:slug/:period", wrap(async (req, res) => {
   const c = await one<Company>("SELECT * FROM companies WHERE slug = $1", [req.params.slug]);
   if (!c) { res.status(404).send(P.notFound()); return; }
   const u = await getUpdate(c.id, String(req.params.period));
   const isFounder = sess(req).companyId === c.id;
   if (!u || (u.status !== "published" && !isFounder)) { res.status(404).send(P.notFound("This update doesn't exist or isn't published yet.")); return; }
+  const preview = isPreview(req);
   const token = typeof req.query.r === "string" ? req.query.r : null;
   let validToken: string | null = null;
   if (token) {
     const r = await one<{ id: number; token: string }>("SELECT id, token FROM recipients WHERE token = $1 AND company_id = $2", [token, c.id]);
     if (r) {
       validToken = r.token;
-      if (u.status === "published") await recordView(u.id, r.id);
+      if (u.status === "published" && !isFounder && !preview) await recordView(u.id, r.id);
     }
   }
   const published = await listUpdates(c.id, { publishedOnly: true });
-  const prev = (await one<Update>("SELECT * FROM updates WHERE company_id = $1 AND period < $2 AND status = 'published' ORDER BY period DESC LIMIT 1", [c.id, u.period])) || null;
+  const pv = preview ? "&preview=1" : "";
+  const banner = u.status === "draft"
+    ? "Preview: this draft is not published yet. Investors can't see it."
+    : preview || isFounder ? "Preview: this visit is not counted as an open." : undefined;
   res.set("Cache-Control", "no-store");
-  res.send(P.publicUpdatePage(c, u, prev, published, validToken, isFounder && !validToken));
+  res.send(P.publicUpdatePage(c, u, await publishedPrev(c.id, u.period), published, {
+    updateHref: (p) => `/u/${c.slug}/${p}${validToken ? `?r=${encodeURIComponent(validToken)}${pv}` : preview ? "?preview=1" : ""}`,
+    historyHref: validToken ? `/i/${encodeURIComponent(validToken)}${preview ? "?preview=1" : ""}` : undefined,
+    banner,
+  }));
 }));
 
 app.get("/i/:token", wrap(async (req, res) => {
   const r = await one<any>("SELECT * FROM recipients WHERE token = $1", [req.params.token]);
   if (!r) { res.status(404).send(P.notFound("This link isn't valid.")); return; }
   const c = (await companyById(r.company_id))!;
+  const preview = isPreview(req) || sess(req).companyId === c.id;
   res.set("Cache-Control", "no-store");
-  res.send(P.investorPage(c, r, await listUpdates(c.id, { publishedOnly: true })));
+  res.send(P.historyPage(c, await listUpdates(c.id, { publishedOnly: true }), {
+    title: `${c.name} updates`,
+    greeting: `Hi ${String(r.name).split(" ")[0]}, every update from`,
+    updateHref: (p) => `/u/${c.slug}/${p}?r=${encodeURIComponent(r.token)}${isPreview(req) ? "&preview=1" : ""}`,
+    banner: preview ? `Preview of ${r.name}'s page. Nothing you open from here counts as an open.` : undefined,
+  }));
+}));
+
+// Company share link: read-only, untracked, revocable.
+async function activeShare(req: express.Request, res: express.Response) {
+  const s = await shareLinkByToken(String(req.params.token));
+  if (!s) { res.status(404).send(P.notFound("This link isn't valid.")); return null; }
+  if (s.revoked_at) { res.status(410).send(P.messagePage("Link inactive", "This link is no longer active.", "Link inactive")); return null; }
+  return { s, c: (await companyById(s.company_id))! };
+}
+app.get("/s/:token", wrap(async (req, res) => {
+  const a = await activeShare(req, res);
+  if (!a) return;
+  res.set("Cache-Control", "no-store");
+  res.send(P.historyPage(a.c, await listUpdates(a.c.id, { publishedOnly: true }), {
+    title: `${a.c.name} updates`,
+    greeting: "Investor updates from",
+    updateHref: (p) => `/s/${encodeURIComponent(a.s.token)}/${p}`,
+  }));
+}));
+app.get("/s/:token/:period", wrap(async (req, res) => {
+  const a = await activeShare(req, res);
+  if (!a) return;
+  const u = await getUpdate(a.c.id, String(req.params.period));
+  if (!u || u.status !== "published") { res.status(404).send(P.notFound("This update doesn't exist or isn't published yet.")); return; }
+  res.set("Cache-Control", "no-store");
+  res.send(P.publicUpdatePage(a.c, u, await publishedPrev(a.c.id, u.period), await listUpdates(a.c.id, { publishedOnly: true }), {
+    updateHref: (p) => `/s/${encodeURIComponent(a.s.token)}/${p}`,
+    historyHref: `/s/${encodeURIComponent(a.s.token)}`,
+  }));
 }));
 
 // ---------------- reminders ----------------
@@ -263,7 +337,8 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 
 const port = Number(process.env.PORT || 3000);
 await migrate();
-if (await seedIfEmpty()) console.log("Seeded demo workspace (Acme Payments).");
+const seeded = await seedOnBoot();
+if (seeded) console.log(`Demo data ${seeded} (Acme Payments).`);
 const c = await one<Company>("SELECT * FROM companies ORDER BY id LIMIT 1");
 app.listen(port, () => {
   console.log(`Ledgerline on ${baseUrl()} (port ${port})`);

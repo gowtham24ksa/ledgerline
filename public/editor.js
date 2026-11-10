@@ -22,7 +22,7 @@
     if (a >= 1e3) return `${s}$${(a / 1e3).toFixed(1).replace(/\.0$/, "")}k`;
     return `${s}$${a}`;
   };
-  const labels = { mrr: "MRR", revenue: "Revenue", cash: "Cash", net_burn: "Net burn", headcount: "Headcount" };
+  const labels = { mrr: "MRR", revenue: "Revenue", cash: "Cash", net_burn: "Net burn", headcount: "Headcount", churned_mrr: "Churned MRR", expansion_mrr: "Expansion MRR" };
   const lines = (name) => form.elements[name].value.split(/\r?\n/).map((l) => l.replace(/^\s*[-*•]\s*/, "").trim()).filter(Boolean);
   const list = (title, items, cls) => items.length ? `<section class="list ${cls}"><h3>${title}</h3><ul>${items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul></section>` : "";
 

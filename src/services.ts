@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { q, one, type Company, type Update, type Recipient, type Metrics } from "./db.js";
-import { runChecks, runway, monthOnMonth } from "./logic.js";
+import { runChecks, deriveKpis, INPUT_METRICS } from "./logic.js";
 import { sendEmail, publishEmailHtml } from "./email.js";
 
 export const newToken = (bytes = 18) => crypto.randomBytes(bytes).toString("base64url");
@@ -17,6 +17,7 @@ export const links = {
     `${baseUrl()}/u/${c.slug}/${period}${token ? `?r=${encodeURIComponent(token)}` : ""}`,
   investor: (token: string) => `${baseUrl()}/i/${encodeURIComponent(token)}`,
   mcp: (c: Company) => `${baseUrl()}/mcp/${c.mcp_secret}`,
+  share: (token: string) => `${baseUrl()}/s/${encodeURIComponent(token)}`,
 };
 
 export async function companyBySecret(secret: string) {
@@ -112,7 +113,7 @@ export function cleanList(xs: unknown): string[] {
 
 export function cleanMetrics(m: any): Metrics {
   const out: Metrics = {};
-  for (const k of ["mrr", "revenue", "cash", "net_burn", "headcount"] as const) {
+  for (const k of INPUT_METRICS) {
     const v = m?.[k];
     if (v === null || v === undefined || v === "") continue;
     const n = typeof v === "number" ? v : Number(String(v).replace(/[$,\s]/g, ""));
@@ -159,24 +160,25 @@ export async function saveDraft(company: Company, input: DraftInput, via: "claud
     ))!;
   }
   const prev = await previousUpdate(company.id, u.period);
-  return { update: u, created: !existing, checks: runChecks(u, prev || null) };
+  return { update: u, created: !existing, checks: runChecks(u, prev || null), kpis: deriveKpis(u.period, u.metrics, prev?.metrics) };
 }
 
 export async function getContext(company: Company) {
-  const recent = await q<Update>(
-    "SELECT * FROM updates WHERE company_id = $1 ORDER BY period DESC LIMIT 6",
+  // Fetch 7 so the oldest of the 6 returned periods still has a previous month for derived KPIs.
+  const seven = await q<Update>(
+    "SELECT * FROM updates WHERE company_id = $1 ORDER BY period DESC LIMIT 7",
     [company.id],
   );
-  const chronological = [...recent].reverse();
-  const periods = chronological.map((u, i) => ({
-    period: u.period,
-    status: u.status,
-    metrics: u.metrics,
-    runway_months: runway(u.metrics),
-    month_on_month: monthOnMonth(u.metrics, i > 0 ? chronological[i - 1].metrics : null)
-      .filter((x) => x.change_pct !== null)
-      .map((x) => ({ metric: x.metric, change_pct: x.change_pct })),
-  }));
+  const recent = seven.slice(0, 6);
+  const chronological = [...seven].reverse();
+  const periods = chronological
+    .map((u, i) => ({
+      period: u.period,
+      status: u.status,
+      metrics: u.metrics,
+      derived: deriveKpis(u.period, u.metrics, i > 0 ? chronological[i - 1].metrics : null),
+    }))
+    .slice(seven.length > 6 ? 1 : 0);
   const lastPublished = recent.find((u) => u.status === "published");
   const draft = recent.find((u) => u.status === "draft");
   const rc = await one<{ n: number }>("SELECT COUNT(*)::int AS n FROM recipients WHERE company_id = $1", [company.id]);
@@ -196,8 +198,11 @@ export async function getContext(company: Company) {
         }
       : null,
     open_draft: draft ? { period: draft.period, dashboard_link: links.editor(draft) } : null,
+    latest_health_summary: periods.length ? periods[periods.length - 1].derived.summary : null,
     notes: [
+      "Use the derived numbers, bands and health summary exactly as given; never recompute or contradict them.",
       "runway_months is always computed as cash / net_burn; never state a different figure.",
+      "burn_multiple = net_burn / net_new_mrr (benchmark bands: CRV). Runway and NRR bands are rules of thumb.",
       "Money values are in USD; headcount is people. Periods are YYYY-MM.",
     ],
   };
@@ -246,4 +251,32 @@ export async function publish(company: Company, update: Update, sendEmails: bool
 
 export async function recordView(updateId: number, recipientId: number) {
   await q("INSERT INTO views (update_id, recipient_id) VALUES ($1, $2)", [updateId, recipientId]);
+}
+
+// ---------------- company share links (untracked, read-only) ----------------
+
+export async function activeShareLink(companyId: number) {
+  return one<{ id: number; token: string; created_at: Date }>(
+    "SELECT * FROM share_links WHERE company_id = $1 AND revoked_at IS NULL ORDER BY id DESC LIMIT 1",
+    [companyId],
+  );
+}
+
+export async function createShareLink(companyId: number, opts: { revokeExisting?: boolean } = {}) {
+  if (opts.revokeExisting) await q("UPDATE share_links SET revoked_at = now() WHERE company_id = $1 AND revoked_at IS NULL", [companyId]);
+  else {
+    const cur = await activeShareLink(companyId);
+    if (cur) return cur;
+  }
+  return (await one<{ id: number; token: string; created_at: Date }>(
+    "INSERT INTO share_links (company_id, token) VALUES ($1, $2) RETURNING *",
+    [companyId, newToken(18)],
+  ))!;
+}
+
+export async function shareLinkByToken(token: string) {
+  return one<{ id: number; company_id: number; token: string; revoked_at: Date | null }>(
+    "SELECT * FROM share_links WHERE token = $1",
+    [token],
+  );
 }

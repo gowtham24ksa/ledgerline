@@ -103,6 +103,17 @@ CREATE TABLE IF NOT EXISTS views (
   recipient_id INT NOT NULL REFERENCES recipients(id) ON DELETE CASCADE,
   viewed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS share_links (
+  id SERIAL PRIMARY KEY,
+  company_id INT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  token TEXT NOT NULL UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  revoked_at TIMESTAMPTZ
+);
+CREATE TABLE IF NOT EXISTS app_meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS views_update_idx ON views(update_id);
 CREATE INDEX IF NOT EXISTS views_recipient_idx ON views(recipient_id);
 CREATE TABLE IF NOT EXISTS email_log (
@@ -127,6 +138,8 @@ export type Metrics = {
   cash?: number | null;
   net_burn?: number | null;
   headcount?: number | null;
+  churned_mrr?: number | null;
+  expansion_mrr?: number | null;
   custom?: Record<string, number | string>;
 };
 

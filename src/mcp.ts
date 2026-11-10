@@ -2,7 +2,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Company } from "./db.js";
 import {
-  getContext, saveDraft, listRecipients, addRecipient, removeRecipient, getUpdate, publish, openStatus, links,
+  getContext, saveDraft, listRecipients, addRecipient, removeRecipient, getUpdate, publish, links,
+  activeShareLink, createShareLink,
 } from "./services.js";
 
 const ok = (data: unknown) => ({
@@ -28,6 +29,8 @@ const metricsSchema = z
     cash: money("Cash in the bank at month end, in USD."),
     net_burn: money("Net cash burned in the month (cash out minus cash in), in USD. Positive means burning."),
     headcount: z.number().int().nonnegative().nullable().optional().describe("Full-time people at month end."),
+    churned_mrr: money("Optional. MRR lost this month from cancellations and downgrades, in USD (positive number)."),
+    expansion_mrr: money("Optional. MRR gained this month from existing customers upgrading, in USD."),
     custom: z
       .record(z.string().min(1).max(60), z.union([z.number().finite(), z.string().max(200)]))
       .optional()
@@ -54,7 +57,8 @@ export function buildMcpServer(company: Company) {
     {
       title: "Get update context",
       description:
-        "Returns the last 6 periods of metrics (with computed runway and month-on-month % changes) and the full text of the " +
+        "Returns the last 6 periods of metrics with derived KPIs (MoM growth, net new MRR, burn multiple, runway, GRR/NRR, " +
+        "ARR per employee), their bands and a one-line health summary, plus the full text of the " +
         "most recent published update. Call this BEFORE drafting so the new update describes what changed and does not " +
         "contradict history. Takes no arguments.",
       inputSchema: {},
@@ -71,7 +75,9 @@ export function buildMcpServer(company: Company) {
         "Creates the draft investor update for a period, or overwrites the existing draft for that period. Fails if that " +
         "period is already published. Returns the draft id, a dashboard link where the founder can edit it, and rule-based " +
         "checks: month-on-month changes, computed runway (cash / net_burn) and warnings (e.g. runway stated in the text " +
-        "differs from cash/net_burn by >10%, or a metric moved >50% month on month). Show the warnings to the founder.",
+        "differs from cash/net_burn by >10%, or a metric moved >50% month on month). Also returns derived KPIs (MoM growth, " +
+        "net new MRR, burn multiple, runway and runway end month, GRR/NRR, ARR per employee), their bands and a one-line " +
+        "health summary. Use these exact numbers and band labels in the letter. Show the warnings to the founder.",
       inputSchema: {
         period,
         metrics: metricsSchema.describe("Key numbers for the month. Use plain numbers, e.g. 135000 not '$135k'."),
@@ -92,6 +98,8 @@ export function buildMcpServer(company: Company) {
           dashboard_link: links.editor(r.update),
           preview_link: links.publicPage(company, r.update.period),
           checks: r.checks,
+          derived: r.kpis,
+          health_summary: r.kpis.summary,
         });
       } catch (e: any) {
         return fail(e.message);
@@ -164,7 +172,31 @@ export function buildMcpServer(company: Company) {
     },
   );
 
+  server.registerTool(
+    "get_share_links",
+    {
+      title: "Get share links",
+      description:
+        "Returns each investor's personal link (their history page with every update; opening an update from it is tracked) " +
+        "and the company share link (read-only full history for anyone, opens not tracked). Creates the company share link " +
+        "if none is active yet. Takes no arguments.",
+      inputSchema: {},
+      annotations: { readOnlyHint: false, idempotentHint: true },
+    },
+    async () => {
+      const existing = await activeShareLink(company.id);
+      const share = existing || (await createShareLink(company.id));
+      const rs = await listRecipients(company.id);
+      return ok({
+        company_share_link: {
+          url: links.share(share.token),
+          created_now: !existing,
+          note: "Anyone with this link can view. Opens aren't tracked. The founder can revoke it on the Investors page.",
+        },
+        investor_links: rs.map((r) => ({ name: r.name, email: r.email, firm: r.firm, personal_link: links.investor(r.token), last_opened_at: r.last_viewed_at })),
+      });
+    },
+  );
+
   return server;
 }
-
-export { openStatus };

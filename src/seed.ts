@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { q, one } from "./db.js";
+import { q, one, type Company } from "./db.js";
 import { hashPassword } from "./auth.js";
 import { newToken } from "./services.js";
 
@@ -7,64 +7,97 @@ import { newToken } from "./services.js";
 export const DEMO_USERNAME = "founder@acme.test";
 export const DEMO_PASSWORD = "ledgerline-demo";
 
+/** Bump when seeded updates/views change; boot re-applies demo data once per version. */
+export const SEED_VERSION = "2";
+
+/*
+ * Six-month story (all fictional):
+ *  MRR $300k → $478k, ~10% MoM. Burn falls as growth rises, so the burn multiple
+ *  (net burn ÷ net new MRR) improves from concerning (2.8x) to solid (1.67x).
+ *  Runway stays around 14 months.
+ *
+ *  period  mrr     netnew burn  BM    cash       runway
+ *  05      300.0k  —      95k   —     1,367k     14.4
+ *  06      330.0k  30.0k  84k   2.80  1,283k     15.3
+ *  07      362.0k  32.0k  80k   2.50  1,203k     15.0
+ *  08      398.0k  36.0k  76k   2.11  1,127k     14.8
+ *  09      436.0k  38.0k  72k   1.89  1,055k     14.7
+ *  10      478.0k  42.0k  70k   1.67    985k     14.1
+ */
 const months = [
   {
-    period: "2026-06",
-    metrics: { mrr: 82000, revenue: 84500, cash: 2400000, net_burn: 145000, headcount: 18, custom: { customers: 214 } },
-    highlights: ["Closed our first bank partner (Northgate Credit Union) on a 2-year contract", "Launched same-day payouts for all merchants"],
-    lowlights: ["Two senior engineering offers declined; hiring is slower than planned"],
+    period: "2026-05",
+    metrics: { mrr: 300000, revenue: 306000, cash: 1367000, net_burn: 95000, headcount: 24, churned_mrr: 3900, expansion_mrr: 6100, custom: { customers: 214 } },
+    highlights: ["Crossed $300k MRR", "Signed Northgate Credit Union, our first bank partner", "Same-day payouts live for every merchant"],
+    lowlights: ["Burn is still too high for our growth rate (we'll start reporting burn multiple next month)"],
     asks: ["Intros to Heads of Payments at regional banks"],
     body: `Hi all,
 
-June was a **foundation month**. We signed Northgate Credit Union, our first bank partner, and shipped same-day payouts to every merchant.
+May was a **foundation month**. We crossed $300k MRR, signed Northgate Credit Union as our first bank partner and shipped same-day payouts to every merchant.
 
-MRR grew to $82k. Net burn was $145k, which leaves about 16.6 months of runway.
+Net burn was $95k with $1.37M in the bank, about 14.4 months of runway. Burn is higher than it should be for our growth, so from June we'll report our burn multiple every month and drive it down.
 
-**Focus for July:** close two more bank partners and fill the senior backend roles.
+— Priya`,
+  },
+  {
+    period: "2026-06",
+    metrics: { mrr: 330000, revenue: 337000, cash: 1283000, net_burn: 84000, headcount: 25, churned_mrr: 4200, expansion_mrr: 7400, custom: { customers: 239 } },
+    highlights: ["MRR up 10% to $330k", "Net burn down $11k after renegotiating processor fees", "Hired a senior backend engineer from a top-5 card issuer"],
+    lowlights: ["Burn multiple of 2.8x: we're spending too much per new dollar of MRR", "Chargebacks hit 0.4% after a fraud wave in ticketing"],
+    asks: ["Advice on fraud vendors that work well under $10M monthly volume"],
+    body: `Hi all,
+
+June MRR reached **$330k (+10%)** and we cut net burn to $84k by renegotiating processor fees.
+
+Our burn multiple was **2.8x**, in the concerning band. The plan: hold headcount growth below revenue growth and push self-serve onboarding so sales cost per merchant falls.
+
+Chargebacks rose to 0.4% after a fraud wave in ticketing; velocity rules are live and we expect to be back under 0.2% in July.
 
 — Priya`,
   },
   {
     period: "2026-07",
-    metrics: { mrr: 91000, revenue: 93200, cash: 2262000, net_burn: 138000, headcount: 19, custom: { customers: 239 } },
-    highlights: ["MRR up 11% to $91k", "Hired a senior backend engineer from a top-5 card issuer"],
-    lowlights: ["Chargeback rate ticked up to 0.4% after a fraud wave in one merchant segment"],
-    asks: ["Advice on fraud vendors that work well under $10M volume"],
+    metrics: { mrr: 362000, revenue: 369000, cash: 1203000, net_burn: 80000, headcount: 26, churned_mrr: 4000, expansion_mrr: 8000, custom: { customers: 263 } },
+    highlights: ["MRR up 9.7% to $362k", "Self-serve onboarding launched: 40% of new merchants signed up without sales", "Chargebacks back down to 0.15%"],
+    lowlights: ["Burn multiple still concerning at 2.5x", "Largest enterprise deal (a marketplace) slipped to Q4"],
+    asks: ["Warm intro to the CFO of a large online marketplace"],
     body: `Hi all,
 
-July MRR reached **$91k (+11%)**. We added 25 merchants and hired a senior backend engineer.
+July MRR was **$362k (+9.7%)**. Self-serve onboarding went live and 40% of new merchants signed up without talking to sales.
 
-The one blemish: a fraud wave in the ticketing segment pushed chargebacks to 0.4%. We've added velocity rules and expect it back under 0.2% in August.
+Burn multiple improved to **2.5x**, still concerning but moving the right way. Chargebacks are back to 0.15%.
 
-Net burn fell to $138k.
+Our biggest pipeline deal, a marketplace, slipped to Q4.
 
 — Priya`,
   },
   {
     period: "2026-08",
-    metrics: { mrr: 99500, revenue: 102000, cash: 2131000, net_burn: 131000, headcount: 20, custom: { customers: 263 } },
-    highlights: ["Chargebacks back to 0.15%", "Second bank partner (Harbor Federal) signed"],
-    lowlights: ["Enterprise deal with a marketplace slipped to Q4"],
-    asks: ["Warm intro to the CFO of a large online marketplace"],
+    metrics: { mrr: 398000, revenue: 406000, cash: 1127000, net_burn: 76000, headcount: 27, churned_mrr: 4300, expansion_mrr: 9100, custom: { customers: 290 } },
+    highlights: ["MRR up 9.9% to $398k", "Second bank partner (Harbor Federal) signed", "Net revenue retention above 101% for the third month"],
+    lowlights: ["Lost one mid-size merchant to a competitor on price", "Burn multiple 2.1x: just above our 2.0x target"],
+    asks: ["Candidates for a VP Sales with bank partnership experience"],
     body: `Hi all,
 
-August MRR was **$99.5k**, just shy of the $100k milestone. Chargebacks are back down to 0.15% and Harbor Federal became our second bank partner.
+August MRR reached **$398k (+9.9%)** and Harbor Federal became our second bank partner.
 
-Our largest pipeline deal (a marketplace) slipped to Q4, so September will be lighter on new logos.
+Burn multiple was **2.1x**, just above our 2.0x target. Existing merchants keep growing: monthly NRR was above 101% for the third month running.
+
+We lost one mid-size merchant on price and are reviewing pricing for high-volume tiers.
 
 — Priya`,
   },
   {
     period: "2026-09",
-    metrics: { mrr: 111000, revenue: 113400, cash: 2009000, net_burn: 122000, headcount: 21, custom: { customers: 290 } },
-    highlights: ["Crossed $100k MRR, now $111k", "Net burn down 7% while growing 12%"],
-    lowlights: ["Lost one mid-size merchant to a competitor on price"],
-    asks: ["Candidates for a VP Sales with bank partnership experience"],
+    metrics: { mrr: 436000, revenue: 445000, cash: 1055000, net_burn: 72000, headcount: 28, churned_mrr: 4500, expansion_mrr: 10500, custom: { customers: 318 } },
+    highlights: ["MRR up 9.5% to $436k", "Burn multiple under 2.0x for the first time (1.9x, solid)", "New high-volume pricing tier stopped price-driven churn"],
+    lowlights: ["VP Sales search still open after 6 weeks"],
+    asks: ["Intros to VP Sales candidates"],
     body: `Hi all,
 
-We crossed **$100k MRR** in September and finished at $111k. Burn kept falling, to $122k, thanks to renegotiated processor fees.
+September MRR was **$436k (+9.5%)**. Our burn multiple dropped below 2.0x for the first time, to **1.9x**.
 
-We lost one mid-size merchant on price; we're reviewing our pricing tiers for high-volume merchants.
+The new high-volume pricing tier is working: no price-driven churn this month. We have $1.06M in the bank, about 14.7 months of runway.
 
 Hiring a VP Sales is now the top priority.
 
@@ -72,15 +105,15 @@ Hiring a VP Sales is now the top priority.
   },
   {
     period: "2026-10",
-    metrics: { mrr: 123500, revenue: 126000, cash: 1897000, net_burn: 112000, headcount: 22, custom: { customers: 318 } },
-    highlights: ["MRR up 11% to $123.5k", "Marketplace enterprise deal signed (live in December)", "Runway now about 17 months"],
-    lowlights: ["VP Sales search still open after 6 weeks"],
+    metrics: { mrr: 478000, revenue: 488000, cash: 985000, net_burn: 70000, headcount: 29, churned_mrr: 4700, expansion_mrr: 12100, custom: { customers: 341 } },
+    highlights: ["MRR up 9.6% to $478k", "Burn multiple improved to 1.67x (solid)", "Marketplace enterprise deal signed, live in December"],
+    lowlights: ["Runway is about 14 months; we want 18+ before a Series A process"],
     asks: ["Intros to VP Sales candidates", "Feedback on our Series A narrative"],
     body: `Hi all,
 
-October was our strongest month yet: MRR reached **$123.5k (+11%)** and we signed the marketplace enterprise deal that slipped in August. It goes live in December.
+October was our strongest month yet: MRR reached **$478k (+9.6%)** and we signed the marketplace deal that slipped in July. It goes live in December.
 
-Net burn fell to $112k, giving us roughly 17 months of runway.
+Burn multiple improved again to **1.67x**. We have $985k in the bank, roughly 14 months of runway.
 
 We're starting Series A prep for Q2 next year and would love feedback on the narrative.
 
@@ -94,45 +127,85 @@ const investors = [
   { name: "Sofia Marin", email: "sofia.marin@angel.test", firm: "Angel investor" },
 ];
 
-export async function seedIfEmpty() {
-  const c = await one("SELECT id FROM companies LIMIT 1");
-  if (c) return false;
-  await seed();
-  return true;
+/**
+ * Fixed open history: hours after publishing that each seeded investor first opened each update
+ * (null = never opened). Maya reads everything quickly, Daniel most things, Sofia skims.
+ */
+const opens: Record<string, (number | null)[]> = {
+  "maya@northstar-ventures.test": [2, 1.5, 3, 2, 1, 2.5],
+  "daniel@bluepeak.test": [20, 26, null, 18, 30, 22],
+  "sofia.marin@angel.test": [48, null, 70, null, 52, null],
+};
+
+const publishedAt = (period: string) => {
+  const [y, mo] = period.split("-").map(Number);
+  return new Date(Date.UTC(y, mo, 4, 15, 0)); // 4th of the following month, 15:00 UTC
+};
+
+export async function getMeta(key: string) {
+  return (await one<{ value: string }>("SELECT value FROM app_meta WHERE key = $1", [key]))?.value;
+}
+async function setMeta(key: string, value: string) {
+  await q("INSERT INTO app_meta (key, value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", [key, value]);
 }
 
+/** Fresh database: create everything. Existing database on an older seed version: refresh demo data in place. */
+export async function seedOnBoot(): Promise<string | null> {
+  const c = await one<Company>("SELECT * FROM companies ORDER BY id LIMIT 1");
+  if (!c) {
+    await seed();
+    return "seeded";
+  }
+  if ((await getMeta("seed_version")) !== SEED_VERSION && c.slug === "acme-payments") {
+    await resetDemoData(c.id);
+    return "refreshed";
+  }
+  return null;
+}
+
+/**
+ * Replace all updates and views with the seeded six months and fixed open history.
+ * Keeps the company (and its MCP connector URL), login, investors and share links.
+ */
+export async function resetDemoData(companyId: number) {
+  await q("DELETE FROM views WHERE update_id IN (SELECT id FROM updates WHERE company_id = $1)", [companyId]);
+  await q("DELETE FROM updates WHERE company_id = $1", [companyId]);
+  const recips = await q<{ id: number; email: string }>("SELECT id, email FROM recipients WHERE company_id = $1", [companyId]);
+  for (const [idx, m] of months.entries()) {
+    const at = publishedAt(m.period);
+    const u = (await one<{ id: number }>(
+      `INSERT INTO updates (company_id, period, status, metrics, highlights, lowlights, asks, body_markdown, created_via, published_at, created_at, updated_at)
+       VALUES ($1,$2,'published',$3,$4,$5,$6,$7,$8,$9,$9,$9) RETURNING id`,
+      [companyId, m.period, JSON.stringify(m.metrics), JSON.stringify(m.highlights), JSON.stringify(m.lowlights),
+        JSON.stringify(m.asks), m.body, idx < 2 ? "app" : "claude", at],
+    ))!;
+    for (const r of recips) {
+      const h = opens[r.email]?.[idx];
+      if (h === null || h === undefined) continue;
+      await q("INSERT INTO views (update_id, recipient_id, viewed_at) VALUES ($1,$2,$3)", [u.id, r.id, new Date(at.getTime() + h * 3600_000)]);
+    }
+  }
+  await q("DELETE FROM email_log WHERE company_id = $1 AND kind = 'reminder'", [companyId]);
+  await setMeta("seed_version", SEED_VERSION);
+}
+
+/** Wipe everything and create the demo workspace from scratch (local use: npm run seed). */
 export async function seed() {
-  await q("TRUNCATE companies, users, updates, recipients, views, email_log RESTART IDENTITY CASCADE");
+  await q("TRUNCATE companies, users, updates, recipients, views, email_log, share_links RESTART IDENTITY CASCADE");
   const secret = crypto.randomBytes(24).toString("base64url");
-  const company = (await one(
-    "INSERT INTO companies (name, slug, founder_name, founder_email, mcp_secret, created_at) VALUES ($1,$2,$3,$4,$5,'2026-05-20') RETURNING *",
+  const company = (await one<Company>(
+    "INSERT INTO companies (name, slug, founder_name, founder_email, mcp_secret, created_at) VALUES ($1,$2,$3,$4,$5,'2026-04-20') RETURNING *",
     ["Acme Payments", "acme-payments", "Priya Raman", null, secret],
   ))!;
   await q("INSERT INTO users (company_id, username, password_hash) VALUES ($1,$2,$3)", [
     company.id, DEMO_USERNAME, hashPassword(DEMO_PASSWORD),
   ]);
-  const recips = [];
   for (const i of investors) {
-    recips.push((await one(
-      "INSERT INTO recipients (company_id, name, email, firm, token, created_at) VALUES ($1,$2,$3,$4,$5,'2026-05-25') RETURNING *",
+    await q(
+      "INSERT INTO recipients (company_id, name, email, firm, token, created_at) VALUES ($1,$2,$3,$4,$5,'2026-04-25')",
       [company.id, i.name, i.email, i.firm, newToken()],
-    ))!);
+    );
   }
-  for (const [idx, m] of months.entries()) {
-    const [y, mo] = m.period.split("-").map(Number);
-    const publishedAt = new Date(Date.UTC(y, mo, 4, 15, 0)); // 4th of the following month
-    const u = (await one(
-      `INSERT INTO updates (company_id, period, status, metrics, highlights, lowlights, asks, body_markdown, created_via, published_at, created_at, updated_at)
-       VALUES ($1,$2,'published',$3,$4,$5,$6,$7,$8,$9,$9,$9) RETURNING *`,
-      [company.id, m.period, JSON.stringify(m.metrics), JSON.stringify(m.highlights), JSON.stringify(m.lowlights),
-        JSON.stringify(m.asks), m.body, idx < 2 ? "app" : "claude", publishedAt],
-    ))!;
-    // Realistic open history: most investors read most updates.
-    for (const [ri, r] of recips.entries()) {
-      if ((idx + ri) % 4 === 3) continue;
-      const at = new Date(publishedAt.getTime() + (ri + 1) * 3.5 * 3600_000);
-      await q("INSERT INTO views (update_id, recipient_id, viewed_at) VALUES ($1,$2,$3)", [u.id, r.id, at]);
-    }
-  }
+  await resetDemoData(company.id);
   return company;
 }
