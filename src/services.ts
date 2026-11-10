@@ -6,7 +6,8 @@ import { sendEmail, publishEmailHtml } from "./email.js";
 export const newToken = (bytes = 18) => crypto.randomBytes(bytes).toString("base64url");
 
 export function baseUrl(): string {
-  return (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, "");
+  const railway = process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : "";
+  return (process.env.PUBLIC_URL || railway || process.env.RENDER_EXTERNAL_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, "");
 }
 
 export const links = {

@@ -6,9 +6,9 @@ Founders write monthly investor updates **in Claude**. Ledgerline stores each up
 
 | | |
 |---|---|
-| Live app | `https://<YOUR-SERVICE>.onrender.com` |
+| Live app | `https://<YOUR-APP>.up.railway.app` |
 | Test login | `founder@acme.test` / `ledgerline-demo` |
-| MCP connector URL | `https://<YOUR-SERVICE>.onrender.com/mcp/<WORKSPACE_SECRET>`, shown in the app under **Connect Claude** |
+| MCP connector URL | `https://<YOUR-APP>.up.railway.app/mcp/<WORKSPACE_SECRET>`, shown in the app under **Connect Claude** |
 
 ## Connect it to Claude (2 minutes)
 
@@ -70,7 +70,16 @@ npm run dev           # terminal 2: builds and serves http://localhost:3000
 
 `npm run seed` wipes and re-seeds the database (prints the new connector URL).
 
-## Deploy (Render)
+## Deploy (Railway)
+
+1. railway.com → **New Project → Deploy from GitHub repo** → pick this repo. `railway.json` sets build (`npm run build`), start (`npm start`) and the `/health` check.
+2. In the project: **+ Create → Database → PostgreSQL**.
+3. App service → **Variables**: `DATABASE_URL` = `${{Postgres.DATABASE_URL}}`, `SESSION_SECRET` = any long random string, `RESEND_API_KEY` = your key.
+4. App service → **Settings → Networking → Generate Domain**. Links use `RAILWAY_PUBLIC_DOMAIN` automatically.
+
+The service stays always on (don't enable "Serverless"/app sleeping).
+
+## Deploy (Render, alternative)
 
 `render.yaml` is a Blueprint: an always-on Starter web service plus a Postgres database. Environment variables: `DATABASE_URL` (wired automatically), `SESSION_SECRET` (generated automatically), `RESEND_API_KEY` (paste it in). `RENDER_EXTERNAL_URL` is provided by Render and used to build links.
 

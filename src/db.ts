@@ -7,7 +7,8 @@ function needsSsl(u: string): boolean {
   if (/sslmode=require/.test(u)) return true;
   try {
     const host = new URL(u).hostname;
-    // Render internal hostnames have no dots and need no SSL; external hosts do.
+    // Private-network hosts (Render "dpg-xxx", Railway "*.railway.internal") need no SSL; public hosts do.
+    if (host.endsWith(".internal")) return false;
     return host.includes(".") && host !== "127.0.0.1" && host !== "localhost";
   } catch {
     return false;
