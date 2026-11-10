@@ -6,9 +6,9 @@ Founders write monthly investor updates **in Claude**. Ledgerline stores each up
 
 | | |
 |---|---|
-| Live app | `https://<YOUR-APP>.up.railway.app` |
+| Live app | `https://ledgerline-production-1348.up.railway.app` |
 | Test login | `founder@acme.test` / `ledgerline-demo` |
-| MCP connector URL | `https://<YOUR-APP>.up.railway.app/mcp/<WORKSPACE_SECRET>`, shown in the app under **Connect Claude** |
+| MCP connector URL | `https://ledgerline-production-1348.up.railway.app/mcp/<WORKSPACE_SECRET>`, shown in the app under **Connect Claude** |
 
 ## Connect it to Claude (2 minutes)
 
