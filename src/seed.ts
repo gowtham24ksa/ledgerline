@@ -8,7 +8,7 @@ export const DEMO_USERNAME = "founder@acme.test";
 export const DEMO_PASSWORD = "ledgerline-demo";
 
 /** Bump when seeded updates/views change; boot re-applies demo data once per version. */
-export const SEED_VERSION = "2";
+export const SEED_VERSION = "3"; // v3: seeded text uses {{placeholders}}
 
 /*
  * Six-month story (all fictional):
@@ -28,28 +28,28 @@ const months = [
   {
     period: "2026-05",
     metrics: { mrr: 300000, revenue: 306000, cash: 1367000, net_burn: 95000, headcount: 24, churned_mrr: 3900, expansion_mrr: 6100, custom: { customers: 214 } },
-    highlights: ["Crossed $300k MRR", "Signed Northgate Credit Union, our first bank partner", "Same-day payouts live for every merchant"],
+    highlights: ["MRR reached {{mrr}}", "Signed Northgate Credit Union, our first bank partner", "Same-day payouts live for every merchant"],
     lowlights: ["Burn is still too high for our growth rate (we'll start reporting burn multiple next month)"],
     asks: ["Intros to Heads of Payments at regional banks"],
     body: `Hi all,
 
-May was a **foundation month**. We crossed $300k MRR, signed Northgate Credit Union as our first bank partner and shipped same-day payouts to every merchant.
+May was a **foundation month**. MRR reached {{mrr}}, signed Northgate Credit Union as our first bank partner and shipped same-day payouts to every merchant.
 
-Net burn was $95k with $1.37M in the bank, about 14.4 months of runway. Burn is higher than it should be for our growth, so from June we'll report our burn multiple every month and drive it down.
+Net burn was {{net_burn}} with {{cash}} in the bank, {{runway}} of runway ({{runway_band}}). Burn is higher than it should be for our growth, so from June we'll report our burn multiple every month and drive it down.
 
 — Priya`,
   },
   {
     period: "2026-06",
     metrics: { mrr: 330000, revenue: 337000, cash: 1283000, net_burn: 84000, headcount: 25, churned_mrr: 4200, expansion_mrr: 7400, custom: { customers: 239 } },
-    highlights: ["MRR up 10% to $330k", "Net burn down $11k after renegotiating processor fees", "Hired a senior backend engineer from a top-5 card issuer"],
-    lowlights: ["Burn multiple of 2.8x: we're spending too much per new dollar of MRR", "Chargebacks hit 0.4% after a fraud wave in ticketing"],
+    highlights: ["MRR up {{mom_growth}} to {{mrr}}", "Net burn down to {{net_burn}} after renegotiating processor fees", "Hired a senior backend engineer from a top-5 card issuer"],
+    lowlights: ["Burn multiple of {{burn_multiple}} ({{burn_band}}): we're spending too much per new dollar of MRR", "Chargebacks hit 0.4% after a fraud wave in ticketing"],
     asks: ["Advice on fraud vendors that work well under $10M monthly volume"],
     body: `Hi all,
 
-June MRR reached **$330k (+10%)** and we cut net burn to $84k by renegotiating processor fees.
+June MRR reached **{{mrr}} (+{{mom_growth}})** and we cut net burn to {{net_burn}} by renegotiating processor fees.
 
-Our burn multiple was **2.8x**, in the concerning band. The plan: hold headcount growth below revenue growth and push self-serve onboarding so sales cost per merchant falls.
+Our burn multiple was **{{burn_multiple}}**, in the {{burn_band}} band. The plan: hold headcount growth below revenue growth and push self-serve onboarding so sales cost per merchant falls.
 
 Chargebacks rose to 0.4% after a fraud wave in ticketing; velocity rules are live and we expect to be back under 0.2% in July.
 
@@ -58,14 +58,14 @@ Chargebacks rose to 0.4% after a fraud wave in ticketing; velocity rules are liv
   {
     period: "2026-07",
     metrics: { mrr: 362000, revenue: 369000, cash: 1203000, net_burn: 80000, headcount: 26, churned_mrr: 4000, expansion_mrr: 8000, custom: { customers: 263 } },
-    highlights: ["MRR up 9.7% to $362k", "Self-serve onboarding launched: 40% of new merchants signed up without sales", "Chargebacks back down to 0.15%"],
-    lowlights: ["Burn multiple still concerning at 2.5x", "Largest enterprise deal (a marketplace) slipped to Q4"],
+    highlights: ["MRR up {{mom_growth}} to {{mrr}}", "Self-serve onboarding launched: 40% of new merchants signed up without sales", "Chargebacks back down to 0.15%"],
+    lowlights: ["Burn multiple still {{burn_band}} at {{burn_multiple}}", "Largest enterprise deal (a marketplace) slipped to Q4"],
     asks: ["Warm intro to the CFO of a large online marketplace"],
     body: `Hi all,
 
-July MRR was **$362k (+9.7%)**. Self-serve onboarding went live and 40% of new merchants signed up without talking to sales.
+July MRR was **{{mrr}} (+{{mom_growth}})**. Self-serve onboarding went live and 40% of new merchants signed up without talking to sales.
 
-Burn multiple improved to **2.5x**, still concerning but moving the right way. Chargebacks are back to 0.15%.
+Burn multiple improved to **{{burn_multiple}}**, still {{burn_band}} but moving the right way. Chargebacks are back to 0.15%.
 
 Our biggest pipeline deal, a marketplace, slipped to Q4.
 
@@ -74,14 +74,14 @@ Our biggest pipeline deal, a marketplace, slipped to Q4.
   {
     period: "2026-08",
     metrics: { mrr: 398000, revenue: 406000, cash: 1127000, net_burn: 76000, headcount: 27, churned_mrr: 4300, expansion_mrr: 9100, custom: { customers: 290 } },
-    highlights: ["MRR up 9.9% to $398k", "Second bank partner (Harbor Federal) signed", "Net revenue retention above 101% for the third month"],
-    lowlights: ["Lost one mid-size merchant to a competitor on price", "Burn multiple 2.1x: just above our 2.0x target"],
+    highlights: ["MRR up {{mom_growth}} to {{mrr}}", "Second bank partner (Harbor Federal) signed", "Monthly NRR at {{nrr}}, above 100% for the third month running"],
+    lowlights: ["Lost one mid-size merchant to a competitor on price", "Burn multiple {{burn_multiple}}: just above our 2.0x target"],
     asks: ["Candidates for a VP Sales with bank partnership experience"],
     body: `Hi all,
 
-August MRR reached **$398k (+9.9%)** and Harbor Federal became our second bank partner.
+August MRR reached **{{mrr}} (+{{mom_growth}})** and Harbor Federal became our second bank partner.
 
-Burn multiple was **2.1x**, just above our 2.0x target. Existing merchants keep growing: monthly NRR was above 101% for the third month running.
+Burn multiple was **{{burn_multiple}}**, just above our 2.0x target. Existing merchants keep growing: monthly NRR was {{nrr}}, above 100% for the third month running.
 
 We lost one mid-size merchant on price and are reviewing pricing for high-volume tiers.
 
@@ -90,14 +90,14 @@ We lost one mid-size merchant on price and are reviewing pricing for high-volume
   {
     period: "2026-09",
     metrics: { mrr: 436000, revenue: 445000, cash: 1055000, net_burn: 72000, headcount: 28, churned_mrr: 4500, expansion_mrr: 10500, custom: { customers: 318 } },
-    highlights: ["MRR up 9.5% to $436k", "Burn multiple under 2.0x for the first time (1.9x, solid)", "New high-volume pricing tier stopped price-driven churn"],
+    highlights: ["MRR up {{mom_growth}} to {{mrr}}", "Burn multiple under 2.0x for the first time ({{burn_multiple}}, {{burn_band}})", "New high-volume pricing tier stopped price-driven churn"],
     lowlights: ["VP Sales search still open after 6 weeks"],
     asks: ["Intros to VP Sales candidates"],
     body: `Hi all,
 
-September MRR was **$436k (+9.5%)**. Our burn multiple dropped below 2.0x for the first time, to **1.9x**.
+September MRR was **{{mrr}} (+{{mom_growth}})**. Our burn multiple dropped below 2.0x for the first time, to **{{burn_multiple}}**.
 
-The new high-volume pricing tier is working: no price-driven churn this month. We have $1.06M in the bank, about 14.7 months of runway.
+The new high-volume pricing tier is working: no price-driven churn this month. We have {{cash}} in the bank, {{runway}} of runway.
 
 Hiring a VP Sales is now the top priority.
 
@@ -106,14 +106,14 @@ Hiring a VP Sales is now the top priority.
   {
     period: "2026-10",
     metrics: { mrr: 478000, revenue: 488000, cash: 985000, net_burn: 70000, headcount: 29, churned_mrr: 4700, expansion_mrr: 12100, custom: { customers: 341 } },
-    highlights: ["MRR up 9.6% to $478k", "Burn multiple improved to 1.67x (solid)", "Marketplace enterprise deal signed, live in December"],
-    lowlights: ["Runway is about 14 months; we want 18+ before a Series A process"],
+    highlights: ["MRR up {{mom_growth}} to {{mrr}}", "Burn multiple improved to {{burn_multiple}} ({{burn_band}})", "Marketplace enterprise deal signed, live in December"],
+    lowlights: ["Runway is {{runway}} ({{runway_band}}); we want 18+ months before a Series A process"],
     asks: ["Intros to VP Sales candidates", "Feedback on our Series A narrative"],
     body: `Hi all,
 
-October was our strongest month yet: MRR reached **$478k (+9.6%)** and we signed the marketplace deal that slipped in July. It goes live in December.
+October was our strongest month yet: MRR reached **{{mrr}} (+{{mom_growth}})** and we signed the marketplace deal that slipped in July. It goes live in December.
 
-Burn multiple improved again to **1.67x**. We have $985k in the bank, roughly 14 months of runway.
+Burn multiple improved again to **{{burn_multiple}}** ({{burn_band}}). We have {{cash}} in the bank, {{runway}} of runway, enough to last until {{runway_end}}.
 
 We're starting Series A prep for Q2 next year and would love feedback on the narrative.
 

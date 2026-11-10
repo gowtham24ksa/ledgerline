@@ -1,6 +1,14 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Company } from "./db.js";
+import { PLACEHOLDERS } from "./logic.js";
+
+const PLACEHOLDER_GUIDE =
+  "In highlights, lowlights, asks and body_markdown, write this month's numbers as live placeholders instead of typing them, " +
+  "so the text stays correct if the founder edits a metric later. Available: " +
+  PLACEHOLDERS.map((p) => `{{${p.token}}}`).join(", ") +
+  ". Example: \"MRR grew {{mom_growth}} to {{mrr}} at a {{burn_multiple}} burn multiple ({{burn_band}}); {{runway}} of runway.\" " +
+  "Type numbers literally only for things that are not metrics (e.g. a deal size or a past month's figure).";
 import {
   getContext, saveDraft, listRecipients, addRecipient, removeRecipient, getUpdate, publish, links,
   activeShareLink, createShareLink,
@@ -48,7 +56,8 @@ export function buildMcpServer(company: Company) {
       instructions:
         `Ledgerline stores ${company.name}'s monthly investor updates. Typical flow: call get_update_context first, ` +
         "write the update with the founder, call save_update_draft, show the founder the warnings and dashboard link, " +
-        "and only call publish_update when the founder explicitly asks to publish/send. Never invent metrics.",
+        "and only call publish_update when the founder explicitly asks to publish/send. Never invent metrics. " +
+        PLACEHOLDER_GUIDE,
     },
   );
 
@@ -77,14 +86,14 @@ export function buildMcpServer(company: Company) {
         "checks: month-on-month changes, computed runway (cash / net_burn) and warnings (e.g. runway stated in the text " +
         "differs from cash/net_burn by >10%, or a metric moved >50% month on month). Also returns derived KPIs (MoM growth, " +
         "net new MRR, burn multiple, runway and runway end month, GRR/NRR, ARR per employee), their bands and a one-line " +
-        "health summary. Use these exact numbers and band labels in the letter. Show the warnings to the founder.",
+        "health summary. Show the warnings to the founder. " + PLACEHOLDER_GUIDE,
       inputSchema: {
         period,
         metrics: metricsSchema.describe("Key numbers for the month. Use plain numbers, e.g. 135000 not '$135k'."),
         highlights: lines("Short bullet points of wins this month, one sentence each."),
         lowlights: lines("Short bullet points of what went badly or is at risk."),
         asks: lines("Specific asks for investors (intros, hires, advice)."),
-        body_markdown: z.string().max(20000).describe("The full update letter in Markdown (no HTML)."),
+        body_markdown: z.string().max(20000).describe("The full update letter in Markdown (no HTML). Use {{placeholders}} for this month's numbers."),
       },
     },
     async (args) => {
@@ -100,6 +109,7 @@ export function buildMcpServer(company: Company) {
           checks: r.checks,
           derived: r.kpis,
           health_summary: r.kpis.summary,
+          note: "Placeholders like {{mrr}} are filled in from the metrics wherever the update is shown.",
         });
       } catch (e: any) {
         return fail(e.message);

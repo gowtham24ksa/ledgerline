@@ -2,7 +2,7 @@ import type { Company, Update, Recipient } from "./db.js";
 import {
   esc, layout, appNav, trendsPanel, updateBody, fmtDate, metricsTable, healthLine, kpiPanel, bandChip,
 } from "./html.js";
-import { periodLabel, runway, fmtMetric, CORE_METRICS, METRIC_LABELS, METRIC_HELP, deriveKpis, type Checks, type Kpis } from "./logic.js";
+import { periodLabel, runway, fmtMetric, CORE_METRICS, METRIC_LABELS, METRIC_HELP, PLACEHOLDERS, deriveKpis, renderText, type Checks, type Kpis } from "./logic.js";
 
 const flashBox = (f?: { kind: string; text: string } | null) =>
   f ? `<div class="flash ${esc(f.kind)}">${esc(f.text)}</div>` : "";
@@ -82,7 +82,7 @@ export function editorPage(c: Company, u: Update, prev: Update | null, checks: C
   return layout({
     title: `${periodLabel(u.period)} · Ledgerline`,
     nav: appNav(c.name, ""),
-    head: `<script src="/static/marked.umd.js" defer></script><script src="/static/editor.js" defer></script>`,
+    head: `<script src="/static/editor.js" defer></script>`,
     body: `${flashBox(flash)}
 <div class="page-head"><div><a href="/dashboard" class="muted small">← All updates</a>
 <h1>${esc(periodLabel(u.period))} <span class="pill ${u.status}">${u.status}</span></h1>
@@ -96,13 +96,17 @@ ${warnings}
 ${kpiPanel(k)}</section>
 
 <div class="editor">
-<form method="post" action="/updates/${u.id}" class="card" id="editor-form">
+<form method="post" action="/updates/${u.id}" class="card" id="editor-form" data-preview="/updates/${u.id}/preview">
 <h2>Metrics</h2>
 <div class="metric-inputs">${CORE_METRICS.map(metricInput).join("")}</div>
-<p class="muted small">Runway is calculated, not entered: <strong id="runway-live">${runway(m) ?? "—"}</strong> months. Ratios (burn multiple, NRR…) update when you save.</p>
+<p class="muted small">Runway is calculated, not entered: <strong id="runway-live">${runway(m) ?? "—"}</strong> months. The preview updates as you type; Checks update when you save.</p>
 <h3>Custom metrics</h3>
 <div id="custom-rows">${customRows}</div>
 <button type="button" class="btn sm ghost" id="add-custom">+ Add metric</button>
+<div class="tokens">
+<p class="small"><strong>Live numbers.</strong> <span class="muted">Write <code>{{mrr}}</code>, <code>{{burn_multiple}}</code> etc. instead of typing numbers; they always show the current metrics. Click to insert at the cursor:</span></p>
+<div class="chips">${PLACEHOLDERS.filter((p) => p.token !== "custom.NAME").map((p) => `<button type="button" class="chip" data-token="${esc(p.token)}" title="${esc(p.help)}">${esc(p.token)}</button>`).join("")}${Object.keys(m.custom || {}).map((ck) => `<button type="button" class="chip" data-token="custom.${esc(ck.toLowerCase())}" title="Custom metric">custom.${esc(ck.toLowerCase())}</button>`).join("")}</div>
+</div>
 <h2>Highlights <span class="muted small">one per line</span></h2>
 <textarea name="highlights" rows="4">${esc((u.highlights || []).join("\n"))}</textarea>
 <h2>Lowlights <span class="muted small">one per line</span></h2>
@@ -243,7 +247,7 @@ export function historyPage(c: Company, published: Update[], opts: { greeting: s
 <span class="muted small">${fmtDate(u.published_at)}</span></div>
 <p class="small hist-summary">${esc(k.summary)}</p>
 ${metricsTable(u, prev)}
-${u.highlights.length ? `<ul class="compact">${u.highlights.map((h) => `<li>${esc(h)}</li>`).join("")}</ul>` : ""}
+${u.highlights.length ? `<ul class="compact">${renderText(u, prev?.metrics, k).highlights.map((h) => `<li>${esc(h)}</li>`).join("")}</ul>` : ""}
 <a class="btn sm" href="${esc(opts.updateHref(u.period))}">Read full update →</a></article>`).join("");
   return layout({
     title: opts.title,

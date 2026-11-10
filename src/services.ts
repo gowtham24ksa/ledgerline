@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { q, one, type Company, type Update, type Recipient, type Metrics } from "./db.js";
-import { runChecks, deriveKpis, INPUT_METRICS } from "./logic.js";
+import { runChecks, deriveKpis, renderText, INPUT_METRICS } from "./logic.js";
 import { sendEmail, publishEmailHtml } from "./email.js";
 
 export const newToken = (bytes = 18) => crypto.randomBytes(bytes).toString("base64url");
@@ -195,12 +195,19 @@ export async function getContext(company: Company) {
           lowlights: lastPublished.lowlights,
           asks: lastPublished.asks,
           body_markdown: lastPublished.body_markdown,
+          // Same text with {{placeholders}} filled in, as investors saw it.
+          as_shown: (() => {
+            const prev = seven.find((x) => x.period < lastPublished.period);
+            const t = renderText(lastPublished, prev?.metrics);
+            return { highlights: t.highlights, lowlights: t.lowlights, asks: t.asks, body_markdown: t.body_markdown };
+          })(),
         }
       : null,
     open_draft: draft ? { period: draft.period, dashboard_link: links.editor(draft) } : null,
     latest_health_summary: periods.length ? periods[periods.length - 1].derived.summary : null,
     notes: [
       "Use the derived numbers, bands and health summary exactly as given; never recompute or contradict them.",
+      "Write this month's numbers in the text as {{placeholders}} (e.g. {{mrr}}, {{mom_growth}}, {{burn_multiple}}, {{runway}}) so they stay in sync with the metrics.",
       "runway_months is always computed as cash / net_burn; never state a different figure.",
       "burn_multiple = net_burn / net_new_mrr (benchmark bands: CRV). Runway and NRR bands are rules of thumb.",
       "Money values are in USD; headcount is people. Periods are YYYY-MM.",
@@ -217,6 +224,7 @@ export async function publish(company: Company, update: Update, sendEmails: bool
     ))!;
   }
   const recipients = await listRecipients(company.id);
+  const shown = renderText(u, (await previousUpdate(company.id, u.period))?.metrics); // fill {{placeholders}} for the email
   const emails: { email: string; ok: boolean; detail: string }[] = [];
   if (sendEmails) {
     for (const r of recipients) {
@@ -225,7 +233,7 @@ export async function publish(company: Company, update: Update, sendEmails: bool
         fromName: `${company.name} via Ledgerline`,
         to: r.email,
         subject: `${company.name} investor update: ${u.period}`,
-        html: publishEmailHtml(company, u, r, link, links.investor(r.token)),
+        html: publishEmailHtml(company, shown, r, link, links.investor(r.token)),
       });
       emails.push({ email: r.email, ok: res.ok, detail: res.detail });
       await q("INSERT INTO email_log (company_id, kind, ref, to_email, ok, detail) VALUES ($1,'publish',$2,$3,$4,$5)", [

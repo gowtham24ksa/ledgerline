@@ -209,7 +209,7 @@ export type Checks = {
   warnings: string[];
 };
 
-export function runChecks(u: Pick<Update, "metrics" | "highlights" | "lowlights" | "asks" | "body_markdown">, prev: Update | null): Checks {
+export function runChecks(u: Pick<Update, "metrics" | "highlights" | "lowlights" | "asks" | "body_markdown"> & { period?: string }, prev: Update | null): Checks {
   const warnings: string[] = [];
   const m = u.metrics || {};
   const rw = runway(m);
@@ -217,7 +217,9 @@ export function runChecks(u: Pick<Update, "metrics" | "highlights" | "lowlights"
     if (!isNum((m as any)[k])) warnings.push(`Missing metric "${k}".`);
   }
   if (isNum(m.net_burn) && m.net_burn <= 0) warnings.push("net_burn is zero or negative, so runway is not computed (company is not burning cash).");
-  const text = [u.body_markdown, ...(u.highlights || []), ...(u.lowlights || []), ...(u.asks || [])].join("\n");
+  // Check the text as readers will see it (placeholders filled in).
+  const shown = renderText({ period: u.period || "2000-01", metrics: m, highlights: u.highlights || [], lowlights: u.lowlights || [], asks: u.asks || [], body_markdown: u.body_markdown || "" }, prev?.metrics);
+  const text = [shown.body_markdown, ...shown.highlights, ...shown.lowlights, ...shown.asks].join("\n");
   for (const s of statedRunways(text)) {
     if (rw === null) warnings.push(`Text states ${s} months of runway but runway cannot be computed from cash/net_burn.`);
     else if (Math.abs(s - rw) / rw > 0.1)
@@ -268,4 +270,73 @@ export function fmtMoney(v: number): string {
   if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(2).replace(/\.?0+$/, "")}M`;
   if (a >= 1e3) return `${s}$${(a / 1e3).toFixed(1).replace(/\.0$/, "")}k`;
   return `${s}$${a}`;
+}
+
+// ---------------- live number placeholders ----------------
+// Text fields may contain {{token}} placeholders that are filled from the metrics at display time,
+// so prose never goes stale when a number is edited. Unknown tokens are left untouched.
+
+export const PLACEHOLDERS: { token: string; help: string }[] = [
+  { token: "month", help: "Period name, e.g. October 2026" },
+  { token: "mrr", help: "MRR, e.g. $478k" },
+  { token: "arr", help: "MRR × 12" },
+  { token: "revenue", help: "Revenue" },
+  { token: "cash", help: "Cash in the bank" },
+  { token: "net_burn", help: "Net burn" },
+  { token: "headcount", help: "Headcount" },
+  { token: "churned_mrr", help: "Churned MRR" },
+  { token: "expansion_mrr", help: "Expansion MRR" },
+  { token: "mom_growth", help: "MoM MRR growth, e.g. 9.6%" },
+  { token: "net_new_mrr", help: "Net new MRR" },
+  { token: "burn_multiple", help: "Burn multiple, e.g. 1.67x" },
+  { token: "burn_band", help: "Burn multiple band, e.g. solid" },
+  { token: "runway", help: "Runway, e.g. 14.1 months" },
+  { token: "runway_band", help: "Runway band, e.g. healthy" },
+  { token: "runway_end", help: "Month cash runs out, e.g. Dec 2027" },
+  { token: "grr", help: "Monthly GRR" },
+  { token: "nrr", help: "Monthly NRR" },
+  { token: "nrr_band", help: "NRR band" },
+  { token: "arr_per_employee", help: "ARR per employee" },
+  { token: "custom.NAME", help: "A custom metric, e.g. {{custom.customers}}" },
+];
+
+export function placeholderValues(period: string, m: Metrics, k: Kpis): Record<string, string> {
+  const na = "n/a";
+  const v = (key: string) => (isNum((m as any)[key]) ? fmtMetric(key, (m as any)[key]) : na);
+  const out: Record<string, string> = {
+    month: periodLabel(period),
+    mrr: v("mrr"), revenue: v("revenue"), cash: v("cash"), net_burn: v("net_burn"), headcount: v("headcount"),
+    churned_mrr: v("churned_mrr"), expansion_mrr: v("expansion_mrr"),
+    arr: isNum(m.mrr) ? fmtMoney(m.mrr * 12) : na,
+    mom_growth: k.mom_growth_pct !== null ? `${k.mom_growth_pct}%` : na,
+    net_new_mrr: k.net_new_mrr !== null ? fmtMoney(k.net_new_mrr) : na,
+    burn_multiple: k.burn_multiple !== null ? `${k.burn_multiple}x` : k.burn_multiple_note || na,
+    burn_band: k.bands.burn_multiple?.label || na,
+    runway: k.runway_months !== null ? `${k.runway_months} months` : na,
+    runway_band: k.bands.runway?.label || na,
+    runway_end: k.runway_end_month ? shortPeriod(k.runway_end_month) : na,
+    grr: k.grr_pct !== null ? `${k.grr_pct}%` : na,
+    nrr: k.nrr_pct !== null ? `${k.nrr_pct}%` : na,
+    nrr_band: k.bands.nrr?.label || na,
+    arr_per_employee: k.arr_per_employee !== null ? fmtMoney(k.arr_per_employee) : na,
+  };
+  for (const [ck, cv] of Object.entries(m.custom || {})) out["custom." + ck.toLowerCase()] = isNum(cv) ? cv.toLocaleString("en-US") : String(cv);
+  return out;
+}
+
+export function fillPlaceholders(text: string, values: Record<string, string>): string {
+  return (text || "").replace(/\{\{\s*([a-zA-Z0-9_.%\- ]+?)\s*\}\}/g, (whole, key: string) => {
+    const k = key.toLowerCase();
+    return k in values ? values[k] : whole;
+  });
+}
+
+/** Returns a copy of the update's text fields with placeholders filled in. */
+export function renderText<T extends { period: string; metrics: Metrics; highlights: string[]; lowlights: string[]; asks: string[]; body_markdown: string }>(
+  u: T, prev: Metrics | null | undefined, k?: Kpis,
+): T {
+  const kp = k || deriveKpis(u.period, u.metrics, prev);
+  const vals = placeholderValues(u.period, u.metrics, kp);
+  const f = (s: string) => fillPlaceholders(s, vals);
+  return { ...u, highlights: (u.highlights || []).map(f), lowlights: (u.lowlights || []).map(f), asks: (u.asks || []).map(f), body_markdown: f(u.body_markdown) };
 }

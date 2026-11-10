@@ -54,6 +54,10 @@ Inputs: `mrr`, `cash`, `net_burn`, `headcount` (plus optional `revenue`, `churne
 
 A one-line health summary (e.g. *"Growing 9.6% MoM at a 1.67x burn multiple (solid); 14.1 months of runway (healthy); NRR 101.7% (expanding)."*) is shown on the dashboard, the public update page and investor history pages, and returned to Claude by `get_update_context` and `save_update_draft` so the letter uses the same numbers. Every metric has a one-sentence "How to read this" explanation (tooltip and footnote).
 
+## Live number placeholders
+
+Text fields (highlights, lowlights, asks, letter) can contain placeholders such as `{{mrr}}`, `{{mom_growth}}`, `{{burn_multiple}}`, `{{burn_band}}`, `{{runway}}`, `{{runway_end}}`, `{{nrr}}` or `{{custom.customers}}`. They are filled in from the metrics wherever the update is shown (public page, investor history, email, editor preview), so editing a number in the app never leaves stale prose. Claude is instructed to write this month's numbers as placeholders; the editor has click-to-insert chips and a live preview rendered by the server. Unknown placeholders are left as typed. The seeded updates use placeholders too.
+
 ## Sharing and view tracking
 
 - **Personal investor links** (`/i/{token}`, and `/u/{slug}/{period}?r={token}` for each update): opening an update records a View. Investors page has **Copy link** and **Preview** per investor.

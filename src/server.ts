@@ -11,9 +11,10 @@ import { buildMcpServer } from "./mcp.js";
 import {
   baseUrl, links, companyBySecret, companyById, listUpdates, getUpdate, previousUpdate, listRecipients, addRecipient,
   removeRecipient, openStatus, openCounts, saveDraft, publish, recordView, cleanList,
-  activeShareLink, createShareLink, shareLinkByToken,
+  activeShareLink, createShareLink, shareLinkByToken, cleanMetrics,
 } from "./services.js";
-import { runChecks, nextPeriod, currentPeriod, INPUT_METRICS } from "./logic.js";
+import { updateBody } from "./html.js";
+import { runChecks, nextPeriod, currentPeriod, INPUT_METRICS, runway } from "./logic.js";
 import * as P from "./pages.js";
 import { sendEmail, reminderEmailHtml } from "./email.js";
 
@@ -156,6 +157,16 @@ app.post("/updates/:id", requireLogin, wrap(async (req, res) => {
     flash(req, "ok", `Saved.${saved.checks.warnings.length ? ` ${saved.checks.warnings.length} warning(s) below.` : ""}`);
   }
   res.redirect(`/updates/${r.u.id}/edit`);
+}));
+
+// Live preview for the editor: renders unsaved form values with the same server code as the public page.
+app.post("/updates/:id/preview", requireLogin, wrap(async (req, res) => {
+  const r = await ownUpdate(req);
+  if (!r) { res.status(404).json({ error: "not found" }); return; }
+  const d = formToDraft(req.body, r.u.period);
+  const draft: Update = { ...r.u, metrics: cleanMetrics(d.metrics), highlights: d.highlights, lowlights: d.lowlights, asks: d.asks, body_markdown: d.body_markdown };
+  const prev = (await previousUpdate(r.c.id, r.u.period)) || null;
+  res.json({ html: updateBody(draft, prev), runway: runway(draft.metrics) });
 }));
 
 app.post("/updates/:id/delete", requireLogin, wrap(async (req, res) => {

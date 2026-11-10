@@ -1,6 +1,6 @@
 import { Marked } from "marked";
 import type { Update } from "./db.js";
-import { CORE_METRICS, METRIC_LABELS, METRIC_HELP, BURN_MULTIPLE_SOURCE, fmtMetric, monthOnMonth, periodLabel, shortPeriod, runway, isNum, fmtMoney, deriveKpis, type Band, type Kpis } from "./logic.js";
+import { CORE_METRICS, METRIC_LABELS, METRIC_HELP, BURN_MULTIPLE_SOURCE, fmtMetric, monthOnMonth, periodLabel, shortPeriod, runway, isNum, fmtMoney, deriveKpis, renderText, type Band, type Kpis } from "./logic.js";
 
 export function esc(s: unknown): string {
   return String(s ?? "")
@@ -179,10 +179,11 @@ export function kpiPanel(k: Kpis) {
 
 export function updateBody(u: Update, prev: Update | null | undefined) {
   const k = deriveKpis(u.period, u.metrics, prev?.metrics);
+  const t = renderText(u, prev?.metrics, k); // {{placeholders}} filled from the metrics
   return `${metricsTable(u, prev)}
 ${kpiPanel(k)}
-<div class="lists">${list("Highlights", u.highlights, "hi")}${list("Lowlights", u.lowlights, "lo")}${list("Asks", u.asks, "ask")}</div>
-<article class="prose">${renderMarkdown(u.body_markdown)}</article>`;
+<div class="lists">${list("Highlights", t.highlights, "hi")}${list("Lowlights", t.lowlights, "lo")}${list("Asks", t.asks, "ask")}</div>
+<article class="prose">${renderMarkdown(t.body_markdown)}</article>`;
 }
 
 export function fmtDate(d: Date | string | null | undefined) {
