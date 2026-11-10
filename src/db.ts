@@ -1,11 +1,28 @@
 import pg from "pg";
 
-const onHost = !!(process.env.RAILWAY_ENVIRONMENT || process.env.RENDER);
-if (!process.env.DATABASE_URL && onHost) {
-  console.error("FATAL: DATABASE_URL is not set. Add it to the service's environment variables (e.g. ${{Postgres.DATABASE_URL}} on Railway).");
+// Prefer DATABASE_URL; otherwise build it from the standard PG* variables (PGHOST, PGUSER, ...).
+function resolveUrl(): string {
+  const e = process.env;
+  if (e.DATABASE_URL && e.DATABASE_URL.trim()) return e.DATABASE_URL.trim();
+  if (e.PGHOST) {
+    const user = encodeURIComponent(e.PGUSER || "postgres");
+    const pass = encodeURIComponent(e.PGPASSWORD || e.POSTGRES_PASSWORD || "");
+    return `postgresql://${user}:${pass}@${e.PGHOST}:${e.PGPORT || 5432}/${e.PGDATABASE || "railway"}`;
+  }
+  if (e.RAILWAY_ENVIRONMENT || e.RENDER) {
+    console.error("FATAL: DATABASE_URL is empty and no PGHOST is set. Set DATABASE_URL on the app service.");
+    process.exit(1);
+  }
+  return "postgres://postgres:postgres@127.0.0.1:5433/postgres";
+}
+const url = resolveUrl();
+try {
+  const u = new URL(url);
+  console.log(`Database: ${u.hostname}:${u.port || 5432}${u.pathname}`);
+} catch {
+  console.error("FATAL: DATABASE_URL is not a valid URL.");
   process.exit(1);
 }
-const url = process.env.DATABASE_URL || "postgres://postgres:postgres@127.0.0.1:5433/postgres";
 
 function needsSsl(u: string): boolean {
   if (/sslmode=disable/.test(u)) return false;
