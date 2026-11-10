@@ -23,13 +23,14 @@ console.log("periods:", ctx.last_6_periods.map((p) => `${p.period}:${p.metrics.m
 
 const draft = await call("save_update_draft", {
   period: "2026-11",
-  metrics: { mrr: 136000, revenue: 139500, cash: 1791000, net_burn: 106000, headcount: 23, custom: { customers: 341 } },
-  highlights: ["MRR up 10% to $136k", "Marketplace integration in final QA"],
+  metrics: { mrr: 524000, revenue: 533000, cash: 920000, net_burn: 65000, headcount: 32, churned_mrr: 5500, expansion_mrr: 12000, custom: { customers: 366 } },
+  highlights: ["MRR up 9.6% to $524k", "Marketplace integration in final QA"],
   lowlights: ["VP Sales search still open"],
   asks: ["Intros to VP Sales candidates"],
-  body_markdown: "Hi all,\n\nNovember MRR reached **$136k**. We now have 20 months of runway.\n\n— Priya",
+  body_markdown: "Hi all,\n\nNovember MRR reached **$524k**. We now have 20 months of runway.\n\n— Priya",
 });
 console.log("draft:", draft.draft_id, draft.dashboard_link);
+console.log("summary:", draft.health_summary);
 console.log("runway:", draft.checks.computed_runway_months, "warnings:", draft.checks.warnings);
 
 const bad = await call("save_update_draft", { period: "2026-10", metrics: {}, highlights: [], lowlights: [], asks: [], body_markdown: "x" });
