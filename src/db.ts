@@ -1,5 +1,10 @@
 import pg from "pg";
 
+const onHost = !!(process.env.RAILWAY_ENVIRONMENT || process.env.RENDER);
+if (!process.env.DATABASE_URL && onHost) {
+  console.error("FATAL: DATABASE_URL is not set. Add it to the service's environment variables (e.g. ${{Postgres.DATABASE_URL}} on Railway).");
+  process.exit(1);
+}
 const url = process.env.DATABASE_URL || "postgres://postgres:postgres@127.0.0.1:5433/postgres";
 
 function needsSsl(u: string): boolean {
