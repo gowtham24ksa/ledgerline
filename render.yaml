@@ -1,0 +1,26 @@
+# Render Blueprint: one always-on web service + one Postgres database.
+# Render dashboard → New → Blueprint → pick this repo.
+services:
+  - type: web
+    name: ledgerline
+    runtime: node
+    plan: starter            # paid, always-on (free tier sleeps)
+    region: oregon
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ledgerline-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: RESEND_API_KEY
+        sync: false          # you paste this in the Render dashboard
+
+databases:
+  - name: ledgerline-db
+    plan: basic-256mb
+    region: oregon
+    postgresMajorVersion: "16"
